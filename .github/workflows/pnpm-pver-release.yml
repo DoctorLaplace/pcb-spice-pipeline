@@ -36,6 +36,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:package
+      - name: Configure release author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Version the source without publishing to npm
         run: pver release --git --package-json --push-main
         env:
