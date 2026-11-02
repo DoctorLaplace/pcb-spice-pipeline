@@ -49,8 +49,12 @@ assert.equal(typeof createNativeSolver,'function');assert.equal(typeof loadIbisS
   console.log('Packed cold import + run with host actions denied: passed')
   await writeFile(join(consumer,'types.mts'),`import {runPipeline,generateReport,type PipelineOptions,type SolverRequest} from '@tscircuit/pcb-spice-pipeline';
 import {createNativeSolver,loadIbisSources,writePipelineOutput} from '@tscircuit/pcb-spice-pipeline/node';
+import type {CircuitJson} from 'circuit-json';
 const execute=async(options:PipelineOptions)=>{const result=await runPipeline(options);const html:string=generateReport(result)['results.html'];await writePipelineOutput({result,outputDir:html})};
-const solver=createNativeSolver();const load=loadIbisSources;const request:SolverRequest={solver:'ngspice',files:{},args:[],outputFiles:[]};void execute;void solver;void load;void request;`)
+const solver=createNativeSolver();const request:SolverRequest={solver:'ngspice',files:{},args:[],outputFiles:[]};
+const circuitJson:CircuitJson=[{type:'pcb_quote_estimate',pcb_quote_estimate_id:'quote',pcb_board_id:'board',supplier_name:'test supplier',currency:'USD',quantity:1,estimated_at:'2026-11-02T00:00:00Z',is_manufacturing_cost_complete:false,is_landed_cost_complete:false}];
+const simulate=async(circuitJson:CircuitJson)=>runPipeline({circuitJson,ibisSources:await loadIbisSources({circuitJson,baseDir:'.'}),runSolver:solver});
+void execute;void request;void circuitJson;void simulate;`)
   await run(process.execPath,[join(root,'node_modules/typescript/bin/tsc'),'--noEmit','--strict','--skipLibCheck','false','--module','NodeNext','--moduleResolution','NodeNext','--target','ES2023','types.mts'],consumer)
   console.log('Packed NodeNext declarations: passed')
   const bun=process.env.BUN??'bun'

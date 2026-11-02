@@ -17,6 +17,14 @@ test('registered valid records are checked without rewriting source values',()=>
   assert.throws(()=>validateCircuitRecords([{type:'unknown_record',unknown_record_id:'bad'}]),/unknown_record bad: no registered record schema/)
 })
 
+test('newer circuit-json records validate without rewriting values or accepting invalid fields',()=>{
+  const quote={type:'pcb_quote_estimate',pcb_quote_estimate_id:'quote',pcb_board_id:'board',supplier_name:'test supplier',currency:'USD',quantity:1,estimated_at:'2026-11-02T00:00:00Z',is_manufacturing_cost_complete:false,is_landed_cost_complete:false}
+  const records=[quote],before=structuredClone(records)
+  validateCircuitRecords(records)
+  assert.deepEqual(records,before)
+  assert.throws(()=>validateCircuitRecords([{...quote,quantity:'invalid'}]),/circuit_schema: pcb_quote_estimate quote: .*quantity/)
+})
+
 test('saved board schema aliases validate without rewriting geometry or accepting malformed holes',async()=>{
   const records=JSON.parse(await readFile(new URL('./fixtures/am3352.circuit.json',import.meta.url),'utf8'))
   const original=JSON.stringify(records)
