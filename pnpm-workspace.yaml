@@ -2,6 +2,7 @@ packages:
   - .
 allowBuilds:
   esbuild: true
+  sharp: false
 blockExoticSubdeps: false
 minimumReleaseAgeExclude:
   - '@tscircuit/core@0.0.2188 || 0.0.2217 || 0.0.2251 || 0.0.2252'
