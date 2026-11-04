@@ -34,3 +34,20 @@ test('saved board schema aliases validate without rewriting geometry or acceptin
   hole.hole_diameter='invalid'
   assert.throws(()=>validateCircuitRecords([hole]),/circuit_schema.*pcb_plated_hole/)
 })
+
+test('saved core group and board-text forms validate in both legacy and circuit-json shapes without rewriting',()=>{
+  const group={type:'pcb_group',pcb_group_id:'group',source_group_id:'source_group',is_subcircuit:true,subcircuit_id:'sub',name:'Processor',
+    center:{x:0,y:0},width:1,height:1,pcb_component_ids:[]}
+  const text={type:'pcb_silkscreen_text',pcb_silkscreen_text_id:'text',anchor_alignment:'center',anchor_position:{x:0,y:0},
+    font:'tscircuit2024',font_size:.4,layer:'top',text:'R1',ccw_rotation:0}
+  const records=[
+    {...group,anchor_alignment:null,display_offset_x:0,display_offset_y:-1.5},
+    {...group,pcb_group_id:'current',anchor_alignment:'center',display_offset_x:'0mm',display_offset_y:'-1.5mm'},
+    {...text,pcb_component_id:null},
+    {...text,pcb_silkscreen_text_id:'omitted'},
+  ],before=structuredClone(records)
+  validateCircuitRecords(records)
+  assert.deepEqual(records,before)
+  assert.throws(()=>validateCircuitRecords([{...group,anchor_alignment:'sideways'}]),/circuit_schema: pcb_group group: .*anchor_alignment/)
+  assert.throws(()=>validateCircuitRecords([{...text,pcb_component_id:7}]),/circuit_schema: pcb_silkscreen_text text: .*pcb_component_id/)
+})
