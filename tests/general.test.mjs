@@ -106,6 +106,25 @@ test('duplicate bare component names and alternative ideal channel paths fail cl
   assert.throws(()=>circuitNodes(cj,g,m),/channel_short/)
 })
 
+test('a channel net split into per-subcircuit records joined by net-only traces is cut like one shared net',()=>{
+  // CPU pin -> DQ@cpu, RAM pin -> DQ@ram, both joined to DQ@board, as boards built from subcircuits save them.
+  const split=cj=>{
+    for(const [id,scope] of [['dq-cpu','cpu'],['dq-ram','ram'],['dq-board','board']]) cj.push({type:'source_net',source_net_id:id,name:'DQ',subcircuit_id:scope,member_source_group_ids:[]})
+    cj.push({type:'source_trace',source_trace_id:'bind-cpu',connected_source_port_ids:['p0'],connected_source_net_ids:['dq-cpu']},
+      {type:'source_trace',source_trace_id:'bind-ram',connected_source_port_ids:['p2'],connected_source_net_ids:['dq-ram']},
+      {type:'source_trace',source_trace_id:'join-cpu',connected_source_port_ids:[],connected_source_net_ids:['dq-cpu','dq-board']},
+      {type:'source_trace',source_trace_id:'join-ram',connected_source_port_ids:[],connected_source_net_ids:['dq-board','dq-ram']})
+    return cj
+  }
+  const {cj,m,g}=fixture()
+  const nodes=circuitNodes(split(cj),g,m)
+  assert.notEqual(nodes.node('p0'),nodes.node('p2'))
+  assert.throws(()=>nodes.node('dq-board'),/channel_net/)
+  const fanout=fixture()
+  split(fanout.cj).push({type:'source_trace',source_trace_id:'tap',connected_source_port_ids:['p1'],connected_source_net_ids:['dq-board']})
+  assert.throws(()=>circuitNodes(fanout.cj,fanout.g,fanout.m),/channel_fanout/)
+})
+
 test('orphan ideal sources and unsupplied IBIS reference rails fail preflight',()=>{
   const {cj,m,g}=fixture()
   cj.push({type:'source_component',source_component_id:'voltage',name:'ORPHAN'},{type:'source_port',source_port_id:'vspos',source_component_id:'voltage'},{type:'source_port',source_port_id:'vsneg',source_component_id:'voltage'},{type:'simulation_voltage_source',simulation_voltage_source_id:'voltage-source',terminal1_source_port_id:'vspos',terminal2_source_port_id:'vsneg',voltage:3.3,is_dc_source:false})
