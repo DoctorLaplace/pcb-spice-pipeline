@@ -55,6 +55,18 @@ test('ground selection follows reference connectivity and is_ground, independent
   assert.ok(Math.abs(copper.pours[0].zMaxMm - copper.pours[0].zMinMm - .035) < 1e-12)
 })
 
+test('one ground split into same-named per-subcircuit net records is a single ground', () => {
+  // Subcircuits scope net records, so a board-wide GND appears once per subcircuit.
+  const { circuit, modeling } = groundPlaneFixture()
+  const net = circuit.find(e => e.type === 'source_net' && e.source_net_id === 'ground')!
+  if (net.type !== 'source_net') throw Error('fixture')
+  circuit.push({ ...net, source_net_id: 'ground-other-subcircuit', subcircuit_id: 'other' },
+    { type: 'source_trace', source_trace_id: 'tie', connected_source_port_ids: ['ground1'], connected_source_net_ids: ['ground-other-subcircuit'] })
+  const copper = geometryFromCircuitJson(circuit, modeling).cells[0].routedCopper!
+  assert.equal(copper.sourceNetId, 'ground', 'named after the reference pin\'s own ground record')
+  assert.deepEqual(copper.pours.map(p => p.pcbCopperPourId), ['ground-plane'])
+})
+
 test('signal route endpoints must reach the physical source and receiver pad layers', () => {
   for (const id of ['b0', 'b2']) {
     const { circuit, modeling } = groundPlaneFixture()
