@@ -1,5 +1,7 @@
 # Adapted from @tscircuit/plop's bun-pver-release workflow.
-name: Publish to npm
+# Releases are GitHub release assets, not npm packages: consumers depend on
+# https://github.com/tscircuit/pcb-spice-pipeline/releases/download/v<version>/tscircuit-pcb-spice-pipeline-<version>.tgz
+name: Release
 on:
   push:
     branches:
@@ -8,15 +10,13 @@ on:
 
 permissions:
   contents: write
-  id-token: write
-  pull-requests: write
 
 concurrency:
-  group: publish-npm
+  group: release
   cancel-in-progress: false
 
 jobs:
-  publish:
+  release:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -28,7 +28,6 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-          registry-url: https://registry.npmjs.org/
       - uses: pnpm/action-setup@v4
         with:
           version: 11.25.0
@@ -38,8 +37,30 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:package
-      - name: Publish release to npm
-        run: pver release
+      - name: Tag the next version
+        # git + package-json only: bump the version in the tag commit and push
+        # the tag. No npm publication and no push to main.
+        run: pver release --git --package-json
         env:
           GITHUB_TOKEN: ${{ secrets.TSCIRCUIT_BOT_GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish the GitHub release
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          TAG=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; nothing to publish."
+            exit 0
+          fi
+          git checkout --detach "$TAG"
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "Tag $TAG does not match package.json version $VERSION" >&2
+            exit 1
+          fi
+          pnpm install --frozen-lockfile
+          npm pack
+          gh release create "$TAG" "tscircuit-pcb-spice-pipeline-$VERSION.tgz" \
+            --verify-tag --title "$TAG" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
