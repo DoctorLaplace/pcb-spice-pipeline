@@ -205,8 +205,15 @@ function groundConnection(circuit: CircuitJson, m: ResolvedModeling, portId: str
 export function routedCopperGeometry(circuit: CircuitJson, m: ResolvedModeling, mappings: LaneMapping[]): Geometry {
   const reference = selectPort(circuit, m.channelReference).source_port_id, connected = connectedSourceIds(circuit, reference)
   const groundNets = circuit.filter(e => e.type === 'source_net').filter(e => e.is_ground && connected.has(e.source_net_id))
-  if (groundNets.length !== 1) fail('ground_net', 'The channel reference must connect to exactly one source_net marked is_ground')
-  const net = groundNets[0], netIds = new Set(circuit.filter(e => e.type === 'source_net').filter(e => connected.has(e.source_net_id)).map(e => e.type === 'source_net' ? e.source_net_id : ''))
+  // Net records are scoped per subcircuit: one physical ground spanning several
+  // subcircuits is several same-named records joined by traces. Name it after
+  // the record the reference pin connects to; distinct ground names stay ambiguous.
+  const direct = new Set(circuit.filter(e => e.type === 'source_trace').filter(e => e.connected_source_port_ids.includes(reference)).flatMap(e => e.type === 'source_trace' ? e.connected_source_net_ids ?? [] : []))
+  const own = groundNets.filter(e => direct.has(e.source_net_id))
+  const net = groundNets.length === 1 ? groundNets[0] : own.length === 1 ? own[0] : undefined
+  if (!net || groundNets.some(e => e.name !== net.name))
+    fail('ground_net', 'The channel reference must connect to exactly one ground net (same-named source_net records marked is_ground across subcircuits)')
+  const netIds = new Set(circuit.filter(e => e.type === 'source_net').filter(e => connected.has(e.source_net_id)).map(e => e.type === 'source_net' ? e.source_net_id : ''))
   const pours: RoutedCopper['pours'] = circuit.filter(e => e.type === 'pcb_copper_pour').filter(e => netIds.has(e.source_net_id ?? '')).map(pour => {
     if (pour.shape !== 'brep') fail('ground_geometry', `${pour.pcb_copper_pour_id}: polygon BREP copper required`)
     const rings = [pour.brep_shape.outer_ring, ...pour.brep_shape.inner_rings]
