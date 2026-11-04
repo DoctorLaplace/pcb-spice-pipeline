@@ -76,21 +76,13 @@ Tools default to `fasthenry`, `FasterCap` and `ngspice` on PATH. The adapter exe
 
 The previous standalone CLI, entry loader, automatic model downloads, setup command and duplicate legacy pipeline have been removed. CLI integrations should render Circuit JSON with their normal renderer and explicitly supply the adapter. Historical receipt comparison/native-IBIS helpers remain internal under `src/legacy`; the independent audit scripts read historical receipt formats and are not a current library API.
 
-## TSX bridge
+## Simulating a board
 
-The root import does not load React or the core renderer. `/tsx` exports both supported bridge functions:
+Declare simulations in the board's own TSX: IBIS models, `analog.transientsimulation` with `spiceEngine="pcb_spice"`, digital stimuli, voltage probes and eye diagrams are ordinary children of `<board>`. `tsci simulate` renders that Circuit JSON and runs this pipeline on it.
 
-```tsx
-import { ImportedBoard, serializeSimulation } from '@tscircuit/pcb-spice-pipeline/tsx'
+`ImportedBoard`/`serializeSimulation` in `src/tsx.ts` are internal test helpers for driving the pipeline from saved Circuit JSON. They are not exported and are not supported in tsci projects.
 
-circuit.add(<ImportedBoard circuitJson={savedBoard} fabricatorPreset="jlcpcb_standard">
-  {/* Native IBIS models, experiments, stimuli, probes and eyes */}
-</ImportedBoard>)
-await circuit.renderUntilSettled()
-const circuitJson = serializeSimulation(circuit)
-```
-
-React, `@tscircuit/core` and `@tscircuit/props` are optional peers required by this integration, with development dependencies for bridge tests. Serialization preserves exact saved physical records and IDs, remaps native declarations to them, and rejects ambiguous bindings or added physical children. Saved construction is retained. Generating a stackup from a fabricator preset requires a core build containing merged [core #4826](https://github.com/tscircuit/core/pull/4826); a saved Circuit JSON stackup works with the committed core baseline.
+React, `@tscircuit/core` and `@tscircuit/props` are optional peers, used here only by those internal helpers and their tests. Generating a stackup from a fabricator preset requires a core build containing merged [core #4826](https://github.com/tscircuit/core/pull/4826); a saved Circuit JSON stackup works with the committed core baseline.
 
 ## Modeling and limits
 

@@ -26,7 +26,7 @@ export interface BoardStackup {
 export function stackupFromCircuitJson(circuit: CircuitJson): BoardStackup {
   const boards = circuit.filter(record => record.type === 'pcb_board')
   const records = circuit.filter(record => record.type === 'pcb_stackup')
-  if (!records.length) throw new Error(`Board ${boards[0]?.pcb_board_id ?? '(missing pcb_board)'} has no pcb_stackup. Set fabricatorPreset (e.g. "jlcpcb_standard") on <board>/<ImportedBoard> so the JLC stackup template is resolved into Circuit JSON.`)
+  if (!records.length) throw new Error(`Board ${boards[0]?.pcb_board_id ?? '(missing pcb_board)'} has no pcb_stackup. Set fabricatorPreset (e.g. "jlcpcb_standard") on <board> so the JLC stackup template is resolved into Circuit JSON.`)
   if (records.length !== 1) fail('stackup', 'One pcb_stackup per simulation entry is supported')
   const stackup = pcb_stackup.parse(records[0])
   if (boards.length !== 1 || boards[0].pcb_board_id !== stackup.pcb_board_id)

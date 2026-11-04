@@ -28,7 +28,7 @@ test('JLC04161H-3313 reproduces board-construction copper and dielectric ranges 
 
 test('missing Circuit JSON stackup fails early with the board template instruction', () => {
   assert.throws(() => geometryFromCircuitJson(fixture().slice(0, 1), {} as never), {
-    message: 'Board pcb_board_0 has no pcb_stackup. Set fabricatorPreset (e.g. "jlcpcb_standard") on <board>/<ImportedBoard> so the JLC stackup template is resolved into Circuit JSON.',
+    message: 'Board pcb_board_0 has no pcb_stackup. Set fabricatorPreset (e.g. "jlcpcb_standard") on <board> so the JLC stackup template is resolved into Circuit JSON.',
   })
 })
 
