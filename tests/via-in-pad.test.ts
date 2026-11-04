@@ -72,3 +72,21 @@ test('a via center inside the pour is insufficient when the barrel crosses its e
   assert.ok(Math.abs(Math.min(...pour.brep_shape.outer_ring.vertices.map(p => p.x)) + 3.05) < 1e-9)
   assert.throws(() => geometryFromCircuitJson(circuit, modeling), /ground_connection/)
 })
+
+test('a board-level via in the pad of a part inside a nested subcircuit is a direct contact', async () => {
+  // Move both parts' pads into a child subcircuit of the board, as boards built
+  // from subcircuits save them; the vias stay board-level.
+  const nest = async (scope: 'pads' | 'vias') => {
+    const circuit = await viaInPad()
+    const board = circuit.find(e => e.type === 'source_group' && e.is_subcircuit && !e.parent_source_group_id)!
+    if (board.type !== 'source_group') throw Error('fixture')
+    circuit.push({ type: 'source_group', source_group_id: 'child', name: 'CHILD', is_subcircuit: true, subcircuit_id: 'child_scope', parent_source_group_id: board.source_group_id })
+    for (const e of circuit) if ((scope === 'pads' ? e.type === 'pcb_port' : e.type === 'pcb_via') && 'subcircuit_id' in e) e.subcircuit_id = 'child_scope'
+    return circuit
+  }
+  const connections = geometryFromCircuitJson(await nest('pads'), modeling).cells[0].routedCopper!.connections
+  for (const path of connections) assert.equal(path.contactRadiusMm, .15)
+  // A via owned by a nested subcircuit does not belong to a pad outside it.
+  const nestedVias = await nest('vias')
+  assert.throws(() => geometryFromCircuitJson(nestedVias, modeling), /ground_connection/)
+})

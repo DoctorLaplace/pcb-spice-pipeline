@@ -4,6 +4,7 @@ import { fail } from './matrices.mjs'
 import { selectPort, resolveRouteVias } from './geometry.js'
 import type { CircuitJson } from './schema.js'
 import type { ExtractionSettings, Geometry, GeometryCell, LaneMapping, ResolvedModeling } from './geometry.js'
+import { subcircuitTree } from './subcircuit-scope.js'
 
 type Point = [number, number]
 type XYZ = [number, number, number]
@@ -144,9 +145,10 @@ function groundConnection(circuit: CircuitJson, m: ResolvedModeling, portId: str
   // A directly connected native via may be associated through its source trace,
   // not source_net_id. Require both that association and physical pad contact.
   const pads = circuit.filter(e => e.type === 'pcb_smtpad').filter(e => e.pcb_port_id === port.pcb_port_id && e.layer === port.layers[0])
-  const connected = connectedSourceIds(circuit, portId)
+  const connected = connectedSourceIds(circuit, portId), subcircuits = subcircuitTree(circuit)
   const directVias = circuit.filter(e => e.type === 'pcb_via').filter(via => {
-    if (via.subcircuit_id !== port.subcircuit_id || (via.source_net_id && !netIds.has(via.source_net_id))) return false
+    // Board-level vias commonly sit in pads of parts inside a nested subcircuit.
+    if (!subcircuits.within(port.subcircuit_id, via.subcircuit_id) || (via.source_net_id && !netIds.has(via.source_net_id))) return false
     const trace = circuit.find(e => e.type === 'source_trace' && e.source_trace_id === via.source_trace_id)
     const traceMatches = trace && trace.type === 'source_trace' && [...trace.connected_source_port_ids, ...(trace.connected_source_net_ids ?? [])].some(id => connected.has(id))
     if (via.source_trace_id && !traceMatches) return false
