@@ -23,6 +23,11 @@ try {
   const installed=join(consumer,'node_modules/@tscircuit/pcb-spice-pipeline')
   await assert.rejects(access(join(installed,'src')),{code:'ENOENT'})
   await assert.rejects(access(join(consumer,'node_modules/react')),{code:'ENOENT'})
+  // circuit-json is a peer: the package never installs its own copy into a host tree.
+  await assert.rejects(access(join(consumer,'node_modules/circuit-json')),{code:'ENOENT'})
+  // Hosts supply circuit-json, as tscircuit does for core and the other converters.
+  const circuitJsonVersion=JSON.parse(await readFile(join(root,'package.json'),'utf8')).devDependencies['circuit-json']
+  await run('npm',['install','--ignore-scripts','--legacy-peer-deps','--no-audit','--no-fund',`circuit-json@${circuitJsonVersion}`],consumer)
   const manifest=JSON.parse(await readFile(join(installed,'package.json'),'utf8'))
   assert.equal(manifest.name,'@tscircuit/pcb-spice-pipeline')
   assert.equal(manifest.main,'./dist/index.js');assert.equal(manifest.types,'./dist/index.d.ts')
@@ -41,7 +46,7 @@ assert.equal(result.experiments.length,1);assert.ok(generateReport(result)['resu
 assert.equal(typeof createNativeSolver,'function');assert.equal(typeof loadIbisSources,'function');assert.equal(typeof writePipelineOutput,'function');`
   await writeFile(join(consumer,'smoke.mjs'),smoke)
   await run(process.execPath,['smoke.mjs'],consumer)
-  console.log('Packed Node import + complete in-memory run: passed (no peers, source tree or install scripts)')
+  console.log('Packed Node import + complete in-memory run: passed (host circuit-json only; no other peers, source tree or install scripts)')
   const denied=(await readFile(join(root,'tests/denied-host.mjs'),'utf8'))
     .replace("'./fixtures/solver.mjs'","'./solver.mjs'").replace("'../dist/index.js'","'@tscircuit/pcb-spice-pipeline'")
   await writeFile(join(consumer,'denied-host.mjs'),denied.replace("readFileSync(0,'utf8')","readFileSync('input.json','utf8')"))

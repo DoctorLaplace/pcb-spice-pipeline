@@ -46,7 +46,6 @@
   "dependencies": {
     "@noble/hashes": "1.8.0",
     "@tscircuit/ibis-to-spice": "https://api.github.com/repos/tscircuit/ibis-to-spice/tarball/ad1ec9e640a92a4d370fc76acbbd8db245563317",
-    "circuit-json": "0.0.541",
     "clipper2-ts": "2.0.1-18",
     "earcut": "3.2.4",
     "format-si-unit": "0.0.12",
@@ -57,6 +56,7 @@
     "@tscircuit/props": "0.0.712",
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",
+    "circuit-json": "0.0.541",
     "circuit-to-svg": "0.0.454",
     "esbuild": "0.28.2",
     "react": "19.2.4",
@@ -66,6 +66,7 @@
   "peerDependencies": {
     "@tscircuit/core": ">=0.0.2188",
     "@tscircuit/props": ">=0.0.705",
+    "circuit-json": "*",
     "react": "^19.0.0"
   },
   "main": "./dist/index.js",
