@@ -212,7 +212,7 @@ export function fastHenryDeck(cell: GeometryCell,extraction: ExtractionSettings)
   return lines.join('\n')+'\n'
 }
 export function fasterCapDeck(cell: GeometryCell,extraction: ExtractionSettings): Record<string,string> {
-  if(cell.routedCopper) return copperFasterCapDeck(cell)
+  if(cell.routedCopper) return copperFasterCapDeck(cell,extraction)
   const files: Record<string,string>={},list=['* 3D conductor surfaces; metres; homogeneous dielectric']
   for(const c of cell.conductors) {
     const rows=['* closed box conductor surface'],n=Math.ceil(c.lengthM/(extraction.maxPanelLengthMm/1000))
