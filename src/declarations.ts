@@ -73,19 +73,29 @@ export function circuitNodes(circuit: CircuitJson,geometry: Geometry,modeling: M
   // A two-terminal channel can have redundant one-port-to-net declarations
   // from component connections at both ends. Cut only that unambiguous case.
   const splitNets=new Set<string>()
+  // Subcircuits scope net records: one logical net crossing subcircuits is
+  // several records joined by net-only traces. Treat each such group as one net.
+  const netGroup=new Map<string,string>()
+  const groupOf=(id: string): string=>{const parent=netGroup.get(id)??id;if(parent===id) return id;const root=groupOf(parent);netGroup.set(id,root);return root}
+  for(const t of traces) if(!channelTraces.has(t.source_trace_id)&&!t.connected_source_port_ids.length) {
+    const [first,...rest]=t.connected_source_net_ids??[]
+    for(const id of rest) netGroup.set(groupOf(id),groupOf(first))
+  }
   const bindings=(port: string)=>new Set(traces.filter(t=>!channelTraces.has(t.source_trace_id)&&
     t.connected_source_port_ids.length===1&&t.connected_source_port_ids[0]===port)
-    .flatMap(t=>t.connected_source_net_ids??[]))
+    .flatMap(t=>t.connected_source_net_ids??[]).map(groupOf))
   for(const mapping of geometry.mappings) {
     const from=bindings(mapping.from),to=bindings(mapping.to)
-    for(const id of from) if(to.has(id)) {
-      if(nets.some(net=>net.source_net_id===id&&net.is_ground)) fail('channel_short',`${mapping.port}: channel is bound to ground`)
-      const attached=traces.filter(t=>t.connected_source_net_ids?.includes(id))
-      if(attached.some(t=>t.connected_source_net_ids!.length!==1)) fail('channel_net',`${mapping.port}: shared channel net has additional net bindings; select explicit endpoints`)
+    for(const group of from) if(to.has(group)) {
+      const ids=new Set(nets.map(net=>net.source_net_id).filter(id=>groupOf(id)===group))
+      if(nets.some(net=>ids.has(net.source_net_id)&&net.is_ground)) fail('channel_short',`${mapping.port}: channel is bound to ground`)
+      const attached=traces.filter(t=>t.connected_source_net_ids?.some(id=>ids.has(id)))
+      if(attached.some(t=>t.connected_source_net_ids!.some(id=>!ids.has(id))||(t.connected_source_port_ids.length&&t.connected_source_net_ids!.length!==1)))
+        fail('channel_net',`${mapping.port}: shared channel net has additional net bindings; select explicit endpoints`)
       const members=attached.flatMap(t=>t.connected_source_port_ids)
       if(members.some(id=>id!==mapping.from&&id!==mapping.to))
         fail('channel_fanout',`${mapping.port}: shared channel net has additional ports; bind loads to an explicit endpoint`)
-      splitNets.add(id)
+      for(const id of ids) splitNets.add(id)
     }
   }
   for(const trace of traces) {
