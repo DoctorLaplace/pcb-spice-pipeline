@@ -3,6 +3,8 @@ import { createElement, Fragment, useLayoutEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 
 import type { BoardProps } from '@tscircuit/props'
+
+// Internal to this package's tests; intentionally absent from package exports.
 export { serializeSimulation } from './tsx-render.js'
 export type { IbisModelDefinition } from '@tscircuit/props'
 export interface SavedRecord { type: string; [key: string]: unknown }
@@ -23,7 +25,12 @@ export interface ImportedBoardProps extends Pick<BoardProps, 'fabricatorPreset' 
   children?: ReactNode
 }
 
-/** Preserves a routed board while core renders native simulation declarations. */
+/**
+ * Internal test helper: preserves a saved routed board while core renders
+ * native simulation declarations against it. Not exported from the package and
+ * not supported in tsci projects; declare simulations in the board's own TSX.
+ * @internal
+ */
 export function ImportedBoard({ circuitJson, children, fabricatorPreset, material }: ImportedBoardProps) {
   const boardRef = useRef<ImportedBoardInstance | null>(null)
   const declarationsRef = useRef<Group | null>(null)

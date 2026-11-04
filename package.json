@@ -19,10 +19,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./tsx": {
-      "types": "./dist/tsx.d.ts",
-      "import": "./dist/tsx.js"
-    },
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
