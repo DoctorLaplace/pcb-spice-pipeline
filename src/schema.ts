@@ -25,17 +25,30 @@ const compatible = (schema: z.ZodTypeAny, normalize: (record: Record<string, unk
     return [value, normalized]
   }, z.tuple([z.unknown(), schema])).transform(([original]) => original)
 
+const numericDisplayOffsets = (record: Record<string, unknown>) => {
+  for (const key of ['display_offset_x','display_offset_y']) {
+    const value = record[key]
+    if (typeof value === 'number' && Number.isFinite(value)) record[key] = `${value}mm`
+  }
+  return record
+}
+
 const physicalCompatibility: Record<string, z.ZodTypeAny> = {
   source_port: compatible(base.source_port, record => {
     if (record.source_component_id === null) delete record.source_component_id
     return record
   }),
-  pcb_component: compatible(base.pcb_component, record => {
-    for (const key of ['display_offset_x','display_offset_y'])
-      if (typeof record[key] === 'number' && Number.isFinite(record[key])) record[key] = `${record[key]}mm`
+  pcb_component: compatible(base.pcb_component, numericDisplayOffsets),
+  // Core wrote anchor_alignment: null and numeric display offsets on groups.
+  pcb_group: compatible(base.pcb_group, record => {
+    if (record.anchor_alignment === null) delete record.anchor_alignment
+    return numericDisplayOffsets(record)
+  }),
+  // Board- and group-level text: circuit-json omits the owner; older core wrote null.
+  pcb_silkscreen_text: compatible(base.pcb_silkscreen_text, record => {
+    if (record.pcb_component_id === null) delete record.pcb_component_id
     return record
   }),
-  pcb_silkscreen_text: base.pcb_silkscreen_text.extend({pcb_component_id:z.string().nullable()}),
   pcb_hole: z.union([base.pcb_hole,z.object({type:z.literal('pcb_hole'),pcb_hole_id:z.string().min(1),
     pcb_component_id:z.null(),hole_shape:z.literal('circle'),hole_diameter:z.number().finite().positive(),
     x:z.number().finite(),y:z.number().finite(),subcircuit_id:z.string().min(1).optional(),is_covered_with_solder_mask:z.boolean().optional()}).passthrough()]),
