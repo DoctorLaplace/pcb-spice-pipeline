@@ -23,6 +23,8 @@ try {
   const installed=join(consumer,'node_modules/@tscircuit/pcb-spice-pipeline')
   await assert.rejects(access(join(installed,'src')),{code:'ENOENT'})
   await assert.rejects(access(join(consumer,'node_modules/react')),{code:'ENOENT'})
+  // circuit-json is bundled into the runtime; the package never adds a second copy to a host tree.
+  await assert.rejects(access(join(consumer,'node_modules/circuit-json')),{code:'ENOENT'})
   const manifest=JSON.parse(await readFile(join(installed,'package.json'),'utf8'))
   assert.equal(manifest.name,'@tscircuit/pcb-spice-pipeline')
   assert.equal(manifest.main,'./dist/index.js');assert.equal(manifest.types,'./dist/index.d.ts')
@@ -47,6 +49,9 @@ assert.equal(typeof createNativeSolver,'function');assert.equal(typeof loadIbisS
   await writeFile(join(consumer,'denied-host.mjs'),denied.replace("readFileSync(0,'utf8')","readFileSync('input.json','utf8')"))
   await run(process.execPath,['denied-host.mjs'],consumer)
   console.log('Packed cold import + run with host actions denied: passed')
+  // Typed hosts supply circuit-json themselves (an optional peer), as tscircuit does.
+  const circuitJsonVersion=JSON.parse(await readFile(join(root,'package.json'),'utf8')).devDependencies['circuit-json']
+  await run('npm',['install','--ignore-scripts','--legacy-peer-deps','--no-audit','--no-fund',`circuit-json@${circuitJsonVersion}`],consumer)
   await writeFile(join(consumer,'types.mts'),`import {runPipeline,generateReport,type PipelineOptions,type SolverRequest} from '@tscircuit/pcb-spice-pipeline';
 import {createNativeSolver,loadIbisSources,writePipelineOutput} from '@tscircuit/pcb-spice-pipeline/node';
 import type {CircuitJson} from 'circuit-json';

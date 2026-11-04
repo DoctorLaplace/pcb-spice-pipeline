@@ -4,10 +4,13 @@ import {rm,readFile,writeFile} from 'node:fs/promises'
 // The converter's umbrella entry also exports an archive loader. Bundle and
 // tree-shake its browser graph so importing our pure entry never initializes
 // fflate's Node worker bridge or any other optional host capability.
+// circuit-json is bundled too: records are validated against the schema
+// version this package was tested with, and hosts keep their own single
+// circuit-json copy (a second installed copy changes which one core resolves).
 await build({entryPoints:['src/index.ts'],outfile:'dist/index.js',bundle:true,
   platform:'browser',format:'esm',target:'es2023',
   mainFields:['module','main'],define:{process:'undefined'},
-  external:['circuit-json','zod','earcut'],
+  external:['zod','earcut'],
 })
 // Historical audit helpers are source-only and are not part of the library.
 await rm('dist/legacy',{recursive:true,force:true})
