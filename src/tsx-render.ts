@@ -3,6 +3,7 @@ import { importedBoardRecords, importedBoardDeclarations } from './tsx.js'
 import type { ImportedBoardInstance, SavedRecord } from './tsx.js'
 import type { CircuitJson } from './schema.js'
 import { fail } from './matrices.mjs'
+import { subcircuitTree } from './subcircuit-scope.js'
 
 export function serializeSimulation(circuit: RootCircuit): CircuitJson {
   const nativeRecords = circuit.getCircuitJson()
@@ -128,11 +129,15 @@ export function serializeSimulation(circuit: RootCircuit): CircuitJson {
     if (!net) fail('tsx_reference', `Simulation references an unknown saved net: ${id}`)
     return net
   }
+  const subcircuits = subcircuitTree(records)
   const netScope = (id: unknown): unknown => {
     const net = originalNet(id)
-    const scopes = new Set(connectedPorts(records, id).map(portScope))
-    if (scopes.size > 1) fail('tsx_scope', `Net ${net.name} crosses saved subcircuits`)
-    return net.subcircuit_id ?? [...scopes][0]
+    const scope = subcircuits.common(connectedPorts(records, id).map(portScope))
+    if (net.subcircuit_id) {
+      if (!subcircuits.within(scope, net.subcircuit_id)) fail('tsx_scope', `Net ${net.name} connects pins outside its saved subcircuit`)
+      return net.subcircuit_id
+    }
+    return scope
   }
   const mapNet = (id: string): string => {
     const cached = netIds.get(id)
@@ -167,9 +172,9 @@ export function serializeSimulation(circuit: RootCircuit): CircuitJson {
   for (const record of simulations) {
     if (record.type === 'simulation_experiment') {
       const states = simulations.filter(state => state.type === 'simulation_ibis_pin_state' && state.simulation_experiment_id === record.simulation_experiment_id)
-      const scopes = new Set(states.map(state => portScope(state.source_port_id)))
-      if (scopes.size > 1) fail('tsx_scope', `${record.name}: selected pins cross saved subcircuits`)
-      if (scopes.size) record.subcircuit_id = [...scopes][0]
+      // Pins in sibling subcircuits (e.g. CPU and DDR memory) share their
+      // nearest common subcircuit, which then owns the whole channel.
+      if (states.length) record.subcircuit_id = subcircuits.common(states.map(state => portScope(state.source_port_id)))
     }
     if (record.type === 'simulation_voltage_probe') {
       let scope = portScope
@@ -179,9 +184,7 @@ export function serializeSimulation(circuit: RootCircuit): CircuitJson {
       let referenceScope: unknown
       if (reference) referenceScope = portScope(reference)
       if (record.reference_input_source_net_id) { reference = record.reference_input_source_net_id; referenceScope = netScope(reference) }
-      if (reference && referenceScope !== signalScope)
-        fail('tsx_scope', `${record.name}: probe terminals cross saved subcircuits`)
-      record.subcircuit_id = signalScope
+      record.subcircuit_id = reference ? subcircuits.common([signalScope, referenceScope]) : signalScope
     }
   }
   const nativeStackups = nativeRecords.filter(record => record.type === 'pcb_stackup')

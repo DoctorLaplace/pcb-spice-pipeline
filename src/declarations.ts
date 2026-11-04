@@ -1,5 +1,6 @@
 import {transmittedBits} from './stimulus.js'
 import {fail} from './matrices.mjs'
+import {subcircuitTree} from './subcircuit-scope.js'
 import {selectPort} from './geometry.js'
 
 import type {CircuitJson, SimulationExperiment, SimulationIbisModel, SimulationIbisPinState, SimulationDigitalStimulus} from './schema.js'
@@ -122,6 +123,7 @@ export function generalDeclarations(circuit: CircuitJson,geometry: Geometry,mode
   const nodes=circuitNodes(circuit,geometry,modeling),ports=new Map(circuit.filter(e=>e.type==='source_port').map(e=>[e.source_port_id,e]))
   const groups=new Map(circuit.filter(e=>e.type==='source_group').map(e=>[e.source_group_id,e]))
   const components=circuit.filter(e=>e.type==='source_component')
+  const subcircuits=subcircuitTree(circuit)
   const componentScope=(id: string | undefined): string | null=>{
     const component=components.find(e=>e.source_component_id===id)
     if(!component) fail('simulation_scope','Missing component for scoped physical port')
@@ -158,12 +160,12 @@ export function generalDeclarations(circuit: CircuitJson,geometry: Geometry,mode
     const scopes=new Set(models.map(model=>componentScope(model.source_component_id)))
     const scope=experiment.subcircuit_id??(scopes.size===1?[...scopes][0]:undefined)
     if(scope===undefined) fail('simulation_scope',`${experiment.name}: multiple modeled subcircuits require an explicit experiment scope`)
-    const scopedModels=models.filter(model=>componentScope(model.source_component_id)===scope)
+    const scopedModels=models.filter(model=>subcircuits.within(componentScope(model.source_component_id),scope))
     if(!scopedModels.length) fail('simulation_scope',`${experiment.name}: no models in its explicit subcircuit scope`)
     for(const mapping of geometry.mappings) for(const endpoint of [mapping.from,mapping.to]) {
       const port=ports.get(endpoint)
       if(!port) fail('ibis_mapping',`${mapping.port}: missing channel endpoint ${endpoint}`)
-      if(componentScope(port.source_component_id)!==scope) fail('simulation_scope',`${experiment.name}: this explicit PCB channel belongs to another scope; separate channel configurations are required`)
+      if(!subcircuits.within(componentScope(port.source_component_id),scope)) fail('simulation_scope',`${experiment.name}: this explicit PCB channel belongs to another scope; separate channel configurations are required`)
     }
     const durationSeconds=milliseconds(experiment.end_time_ms,`${id} end_time_ms`,{positive:true}),startTimeSeconds=milliseconds(experiment.start_time_ms??0,`${id} start_time_ms`),maxStepSeconds=milliseconds(experiment.time_per_step,`${id} time_per_step`,{positive:true})
     if(startTimeSeconds>=durationSeconds||maxStepSeconds>=durationSeconds-startTimeSeconds) fail('simulation_timing',`${experiment.name}: recording must have positive duration and a smaller maximum timestep`)
@@ -194,7 +196,7 @@ export function generalDeclarations(circuit: CircuitJson,geometry: Geometry,mode
     }
     for(const state of states) if(state.is_output&&state.is_output_enabled&&!stimulusIds.has(state.source_port_id)) fail('stimulus_missing',`${experiment.name}: enabled output requires one explicit digital stimulus`)
     const eyeRecords=circuit.filter(e=>e.type==='simulation_eye_diagram').filter(e=>e.simulation_experiment_id===id)
-    const probes=circuit.filter(e=>e.type==='simulation_voltage_probe').filter(e=>(e.subcircuit_id??null)===scope).map((probe,i)=>{
+    const probes=circuit.filter(e=>e.type==='simulation_voltage_probe').filter(e=>subcircuits.within(e.subcircuit_id,scope)).map((probe,i)=>{
       const signal=probe.signal_input_source_port_id??probe.signal_input_source_net_id
       const reference=probe.reference_input_source_port_id??probe.reference_input_source_net_id
       if(!signal) fail('probe_reference',`${probe.name}: signal port/net required`)
