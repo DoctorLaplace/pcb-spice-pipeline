@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { geometryFromCircuitJson, fastHenryDeck, fasterCapDeck } from '../src/geometry.js'
-import { groundMesh } from '../src/copper.js'
+import { groundMesh, copperFasterCapDeck, panelAspectLimit } from '../src/copper.js'
 import { groundPlaneFixture, routedGroundPlaneFixture } from './fixtures/ground-plane.js'
 
 function closedSurfaceVolume(surface: string): number {
@@ -179,3 +179,32 @@ test('both native decks use ground polygon cutouts and original trace coordinate
   assert.ok(fh.length < fastHenryDeck(cell,{...modeling.extraction,groundMeshMm:.25}).length)
 })
 
+
+test('FasterCap copper panels are pre-shaped: graded faces, short side walls, same closed solid (#28)', () => {
+  const { circuit, modeling } = groundPlaneFixture(), cell = geometryFromCircuitJson(circuit, modeling).cells[0]
+  const panels = (surface: string) => surface.split('\n').filter(r => /^[TQ] /.test(r)).map(row => {
+    const values = row.split(' ').slice(2).map(Number)
+    return { kind: row[0], points: Array.from({ length: values.length / 3 }, (_, i) => values.slice(i * 3, i * 3 + 3)) }
+  })
+  const edges = (points: number[][]) => points.map((p, i) => Math.hypot(...p.map((v, j) => v - points[(i + 1) % points.length][j])))
+  const legacy = copperFasterCapDeck(cell), shaped = fasterCapDeck(cell, modeling.extraction)
+  for (const name of ['sig0', 'sig1', 'return']) {
+    const before = panels(legacy[`${name}.txt`]), after = panels(shaped[`${name}.txt`])
+    assert.ok(after.length > before.length, `${name} is subdivided`)
+    // Subdivision keeps the exact closed, outward-facing copper solid.
+    assert.ok(Math.abs(closedSurfaceVolume(shaped[`${name}.txt`]) - closedSurfaceVolume(legacy[`${name}.txt`])) < 1e-20)
+    for (const { kind, points } of after) {
+      const e = edges(points)
+      assert.ok(Math.min(...e) > 0)
+      if (kind === 'T') assert.ok(Math.max(...e) <= modeling.extraction.maxPanelLengthMm, 'face panels respect maxPanelLengthMm')
+      else assert.ok(Math.max(e[0], e[2]) <= panelAspectLimit * Math.min(e[1], e[3]) * (1 + 1e-9), 'side walls are not thin slivers')
+    }
+  }
+  // Pour faces are graded: fine panels under the trace (y = -.375 / .375), coarse far away.
+  const pourFace = panels(shaped['return.txt']).filter(p => p.kind === 'T' && p.points.every(q => q[2] === p.points[0][2]))
+  const size = (near: boolean) => {
+    const chosen = pourFace.filter(p => { const y = p.points.reduce((s, q) => s + q[1], 0) / 3; return near ? Math.abs(Math.abs(y) - .375) < .1 : Math.abs(y) > 1.5 })
+    return chosen.reduce((s, p) => s + Math.max(...edges(p.points)), 0) / chosen.length
+  }
+  assert.ok(size(true) < .25 && size(false) > 2 * size(true), 'pour panels grade from fine near the signal to coarse far away')
+})
