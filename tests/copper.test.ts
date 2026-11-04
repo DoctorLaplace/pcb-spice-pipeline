@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { geometryFromCircuitJson, fastHenryDeck, fasterCapDeck } from '../src/geometry.js'
-import { groundMesh, copperFasterCapDeck, panelAspectLimit } from '../src/copper.js'
+import { groundMesh, copperFasterCapDeck, panelAspectLimit, meshPolygon } from '../src/copper.js'
 import { groundPlaneFixture, routedGroundPlaneFixture } from './fixtures/ground-plane.js'
 
 function closedSurfaceVolume(surface: string): number {
@@ -219,4 +219,16 @@ test('FasterCap copper panels are pre-shaped: graded faces, short side walls, sa
     return chosen.reduce((s, p) => s + Math.max(...edges(p.points)), 0) / chosen.length
   }
   assert.ok(size(true) < .25 && size(false) > 2 * size(true), 'pour panels grade from fine near the signal to coarse far away')
+})
+
+test('a copper ring that touches its own edge meshes without losing area', () => {
+  // AM3352 ground pour island: a via-clearance arc whose apex (vertex 6) lies
+  // exactly on the island's outer edge 16-17, so that edge is split before grading.
+  const ring: [number, number][] = [[-1.549946, -25.066683688113], [-1.613867112882, -25.048153938437], [-1.61365003549, -25.047405097858], [-1.619080171618, -25.046324976626], [-1.635301339059, -25.035486339059], [-1.646139976626, -25.019265171618], [-1.649946, -25.000131], [-1.646139976626, -24.980996828382], [-1.635301339059, -24.964775660941], [-1.619080171618, -24.953937023374], [-1.599946, -24.950131], [-1.586241964509, -24.952856902141], [-1.586024887118, -24.952108061563], [-1.442037630218, -24.993847757677], [-1.549946, -24.962566777263], [-1.549946, -24.931408660703], [-1.649946, -24.931408660703], [-1.649946, -25.068853339297], [-1.549946, -25.068853339297]]
+  const shoelace = Math.abs(ring.reduce((s, p, i) => { const q = ring[(i + 1) % ring.length]; return s + p[0] * q[1] - q[0] * p[1] }, 0)) / 2
+  for (const h of [.2, .02, .005]) {
+    const triangles = meshPolygon([ring], () => h)
+    const area = triangles.reduce((s, [a, b, c]) => s + Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2, 0)
+    assert.ok(Math.abs(area - shoelace) < 1e-9 * Math.max(1, shoelace), `h=${h}: ${area} vs ${shoelace}`)
+  }
 })
