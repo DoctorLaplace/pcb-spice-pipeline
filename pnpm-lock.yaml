@@ -14,9 +14,6 @@ importers:
       '@tscircuit/ibis-to-spice':
         specifier: https://api.github.com/repos/tscircuit/ibis-to-spice/tarball/ad1ec9e640a92a4d370fc76acbbd8db245563317
         version: https://api.github.com/repos/tscircuit/ibis-to-spice/tarball/ad1ec9e640a92a4d370fc76acbbd8db245563317
-      circuit-json:
-        specifier: 0.0.541
-        version: 0.0.541(format-si-unit@0.0.12(typescript@5.9.3))
       clipper2-ts:
         specifier: 2.0.1-18
         version: 2.0.1-18
@@ -42,6 +39,9 @@ importers:
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0
+      circuit-json:
+        specifier: 0.0.541
+        version: 0.0.541(format-si-unit@0.0.12(typescript@5.9.3))
       circuit-to-svg:
         specifier: 0.0.454
         version: 0.0.454(@tscircuit/alphabet@0.0.25(typescript@5.9.3))(@tscircuit/circuit-json-util@0.0.123(circuit-json@0.0.541(format-si-unit@0.0.12(typescript@5.9.3)))(transformation-matrix@3.1.0)(zod@3.25.76))(circuit-json-to-connectivity-map@0.0.35(typescript@5.9.3))(circuit-json@0.0.541(format-si-unit@0.0.12(typescript@5.9.3)))(schematic-symbols@0.0.249(typescript@5.9.3))(typescript@5.9.3)
