@@ -451,7 +451,7 @@ function gradedSplit(a: Point, b: Point, size: (p: Point) => number): number[] {
 // constrained Delaunay triangulation of the polygon vertices; boundary edges are
 // then split by gradedSplit, graded quadtree points are inserted inside, and
 // Lawson flips (earcut refine) restore the constrained Delaunay mesh.
-function meshPolygon(rings: Point[][], size: (p: Point) => number): Point[][] {
+export function meshPolygon(rings: Point[][], size: (p: Point) => number): Point[][] {
   const pts: Point[] = rings.flat().map(p => [p[0], p[1]]), starts: number[] = []
   let count = rings[0].length
   for (const r of rings.slice(1)) { starts.push(count); count += r.length }
@@ -491,13 +491,27 @@ function meshPolygon(rings: Point[][], size: (p: Point) => number): Point[][] {
       if (v >= 0) { splitEdge(a, b, v); fixed = true; break }
     }
   }
+  // The T-junction repair may already have split a ring edge at vertices lying
+  // on it (a ring that touches itself). Grade each existing piece in order.
+  const along = (A: Point, B: Point, P: Point) => ((P[0] - A[0]) * (B[0] - A[0]) + (P[1] - A[1]) * (B[1] - A[1])) / ((B[0] - A[0]) ** 2 + (B[1] - A[1]) ** 2)
+  const pieces = (ia: number, ib: number): number[] => {
+    if (edgeTris.get(key(ia, ib))?.size) return [ia, ib]
+    const A = pts[ia], B = pts[ib], dx = B[0] - A[0], dy = B[1] - A[1], l2 = dx * dx + dy * dy
+    const inner = pts.map((P, i) => ({ i, t: along(A, B, P) })).filter(({ i, t }) => i !== ia && i !== ib && t > 1e-9 && t < 1 - 1e-9 &&
+      Math.abs((pts[i][0] - A[0]) * dy - (pts[i][1] - A[1]) * dx) <= 1e-12 * l2).sort((u, w) => u.t - w.t).map(({ i }) => i)
+    const chain = [ia, ...inner, ib]
+    if (chain.slice(1).some((w, k) => !edgeTris.get(key(chain[k], w))?.size)) fail('ground_geometry', 'Copper ring edge is missing from its triangulation')
+    return chain
+  }
   let base = 0
   for (const r of rings) {
     r.forEach((_, i) => {
-      const ia = base + i, ib = base + (i + 1) % r.length, A = pts[ia], B = pts[ib]
-      let previous = ia
+      const ia = base + i, ib = base + (i + 1) % r.length, A = pts[ia], B = pts[ib], chain = pieces(ia, ib)
+      let piece = 1, previous = ia
       for (const t of gradedSplit(A, B, size).slice(1, -1)) {
-        pts.push([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]); splitEdge(previous, ib, pts.length - 1); previous = pts.length - 1
+        while (piece < chain.length - 1 && along(A, B, pts[chain[piece]]) <= t) previous = chain[piece++]
+        if (Math.abs(along(A, B, pts[chain[piece]]) - t) < 1e-9 || Math.abs(along(A, B, pts[previous]) - t) < 1e-9) continue
+        pts.push([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]); splitEdge(previous, chain[piece], pts.length - 1); previous = pts.length - 1
       }
     })
     base += r.length
