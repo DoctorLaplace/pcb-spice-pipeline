@@ -127,6 +127,48 @@ test('saved board net probes retain their original net identity and scope', asyn
   assert.equal(probe.subcircuit_id, net.subcircuit_id)
 })
 
+test('a channel between sibling saved subcircuits is scoped to their nearest common subcircuit', async () => {
+  // DDR boards keep the processor and memory in sibling subcircuits; the
+  // write channel runs from one to the other.
+  const chip = (name: string) => h('chip', { name, pinLabels: { pin1: 'DATA', pin2: 'GND', pin3: 'VCC' }, footprint: 'sot23' })
+  const source = new Circuit()
+  source.add(h('board', { width: 20, height: 10, routingDisabled: true, schematicDisabled: true },
+    h('group', { name: 'CPU', subcircuit: true, pcbX: -4 }, chip('U1')),
+    h('group', { name: 'RAM', subcircuit: true, pcbX: 4 }, chip('U2')),
+    h('trace', { from: '.CPU > .U1 > .DATA', to: '.RAM > .U2 > .DATA' })))
+  await source.renderUntilSettled()
+  const original = source.getCircuitJson()
+  const scopeOf = (name: string) => {
+    const group = original.find(record => record.type === 'source_group' && record.name === name)!
+    assert.equal(group.type, 'source_group')
+    return group.type === 'source_group' ? group.subcircuit_id : undefined
+  }
+  const board = original.find(record => record.type === 'source_group' && record.is_subcircuit && !record.parent_source_group_id)!
+  assert.equal(board.type, 'source_group')
+  if (board.type !== 'source_group') return
+  assert.notEqual(scopeOf('CPU'), scopeOf('RAM'))
+  const circuit = new Circuit()
+  circuit.add(h(ImportedBoard, { circuitJson: original },
+    h('ibismodel', { ...model, componentRef: '.U1', key: 'cpu' }),
+    h('ibismodel', { ...model, componentRef: '.U2', key: 'ram' }),
+    h(analog.transientsimulation, { name: 'SI', duration: '100ns', timePerStep: '10ps', spiceEngine: 'pcb_spice', key: 'transient',
+      ibisPinStates: { '.U1 > .DATA': { isOutput: true, isOutputEnabled: true }, '.U2 > .DATA': { isOutput: false } } }),
+    h('voltageprobe', { name: 'RX', connectsTo: '.U2 > .DATA', referenceTo: '.U2 > .GND', key: 'rx' }),
+    h('voltageprobe', { name: 'TX_TO_RX', connectsTo: '.U1 > .DATA', referenceTo: '.U2 > .GND', key: 'span' })))
+  await circuit.renderUntilSettled()
+  const records = serializeSimulation(circuit)
+  const experiment = records.find(record => record.type === 'simulation_experiment')!
+  assert.equal(experiment.type, 'simulation_experiment')
+  if (experiment.type !== 'simulation_experiment') return
+  assert.equal(experiment.subcircuit_id, board.subcircuit_id)
+  const probeScope = (name: string) => {
+    const probe = records.find(record => record.type === 'simulation_voltage_probe' && record.name === name)!
+    return probe.type === 'simulation_voltage_probe' ? probe.subcircuit_id : undefined
+  }
+  assert.equal(probeScope('RX'), scopeOf('RAM'))
+  assert.equal(probeScope('TX_TO_RX'), board.subcircuit_id)
+})
+
 test('saved boards with prior simulation declarations are rejected before native rendering', async () => {
   const source = new Circuit(); source.add(tree()); await source.renderUntilSettled()
   const circuit = new Circuit()
